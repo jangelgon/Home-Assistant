@@ -1,0 +1,90 @@
+#Add in /homeassistant/configuration.yaml
+#input_boolean:
+# cycle_active:
+#   name: Cycle Actif
+#   initial: off
+#   icon: mdi:repeat
+
+blueprint:
+  name: Device On/Off Cycle with Timer
+  description: An automation that activates a device for a certain number of minutes at regular intervals within a defined time range.
+  domain: automation
+  input:
+    device_entity:
+      name: Device or Entity
+      description: The device or entity to enable/disable.
+      selector:
+        entity:
+          domain: switch
+
+    interval_minutes:
+      name: Interval (minutes)
+      description: The number of minutes between each device activation.
+      default: 30
+      selector:
+        number:
+          min: 1
+          max: 120
+          unit_of_measurement: minutes
+
+    on_duration:
+      name: Activation time (minutes)
+      description: The amount of time the device remains on.
+      default: 30
+      selector:
+        number:
+          min: 1
+          max: 120
+          unit_of_measurement: minutes
+
+    start_time:
+      name: Start time
+      description: The start time of the on/off cycle.
+      default: "08:00:00"
+      selector:
+        time:
+
+    end_time:
+      name: End time
+      description: End time of the on/off cycle.
+      default: "20:00:00"
+      selector:
+        time:
+
+mode: restart
+
+trigger:
+  - platform: time_pattern
+    minutes: "/1" # Triggers every minute
+
+condition:
+  - condition: template
+    value_template: >
+      {{ states('sensor.time') >= (states('input_datetime.start_time') | default('08:00:00')) and states('sensor.time') <= (states('input_datetime.end_time') | default('20:00:00')) }}
+
+  - condition: state
+    entity_id: input_boolean.cycle_active
+    state: "off" # Checks that the loop is not already active
+
+action:
+  - service: input_boolean.turn_on
+    target:
+      entity_id: input_boolean.cycle_active # Activates the cycle
+
+  - service: switch.turn_on
+    target:
+      entity_id: !input device_entity
+
+  - delay:
+      minutes: !input on_duration
+
+  - service: switch.turn_off
+    target:
+      entity_id: !input device_entity
+
+  - delay:
+      minutes: !input interval_minutes
+
+  - service: input_boolean.turn_off
+    target:
+      entity_id: input_boolean.cycle_active # Disables the cycle at the end of the action
